@@ -1,12 +1,7 @@
-/* global localStorage */
-
-// Create a Store that holds values in the `storage` object
-export const memoryStore = (hash, storage) => new Store(jsonSerializer(hash), emptyDeserializer, storage, '')
-
 // Create a Store that holds values in localStorage
-export const localStore = (hash) => new Store(jsonSerializer(hash), emptyDeserializer, localStorage, '')
+export const localStore = (hash, localStorage) => new Store(jsonSerializer(hash), emptyDeserializer, localStorage, undefined)
 
-export const emptyDeserializer = () => undefined
+export const emptyDeserializer = _ => undefined
 
 export const jsonSerializer = hash => data => {
   const json = JSON.stringify(data)
@@ -45,5 +40,3 @@ export class Store {
     return new Store(this.serialize, deserialize, this.storage, key)
   }
 }
-
-
