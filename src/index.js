@@ -1,11 +1,14 @@
 // Create a Store that holds values in localStorage
-export const localStore = (hash, localStorage) => new Store(jsonSerializer(hash), emptyDeserializer, localStorage, undefined)
+// The the returned store will have the value addressed by the provided key
+export const localStore = (hash, localStorage, key) =>
+  new Store(jsonSerializer(hash), jsonDeserializer, localStorage, key)
 
-export const emptyDeserializer = _ => undefined
+export const jsonDeserializer = json =>
+  json == null ? undefined : JSON.parse(json)
 
 export const jsonSerializer = hash => data => {
   const json = JSON.stringify(data)
-  return { key: hash(json), content: json, deserialize: JSON.parse }
+  return { key: hash(json), content: json, deserialize: jsonDeserializer }
 }
 
 // An immutable content-addressed store

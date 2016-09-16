@@ -1,12 +1,6 @@
 import { describe, it } from 'mocha'
 import assert from 'assert'
-import { emptyDeserializer, jsonSerializer } from '../src/index'
-
-describe('emptySerializer', () => {
-  it('should return undefined', () => {
-    assert.strictEqual(undefined, emptyDeserializer({}))
-  })
-})
+import { jsonDeserializer, jsonSerializer } from '../src/index'
 
 describe('jsonSerializer', () => {
   it('should return hash key and serialized content', () => {
@@ -16,6 +10,18 @@ describe('jsonSerializer', () => {
 
     const { key, content, deserialize } = serialize(data)
     assert.strictEqual(key, hash(JSON.stringify(data)))
-    assert.deepEqual(data, deserialize(content))
+    assert.deepStrictEqual(data, deserialize(content))
+  })
+})
+
+describe('jsonDeserializer', () => {
+  it('should return undefined for null or undefined input', () => {
+    assert.strictEqual(undefined, jsonDeserializer(null))
+    assert.strictEqual(undefined, jsonDeserializer(undefined))
+  })
+
+  it('should return deserialized data for value input', () => {
+    const data = { test: Math.random() }
+    assert.deepStrictEqual(data, jsonDeserializer(JSON.stringify(data)))
   })
 })
