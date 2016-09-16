@@ -46,19 +46,4 @@ export class Store {
   }
 }
 
-//
-// export class JSONSerializer {
-//   constructor (hash) {
-//     this.hash = hash
-//   }
-//
-//   serialize (data) {
-//     const json = JSON.stringify(data)
-//     return { key: this.hash(json), content: json }
-//   }
-//
-//   deserialize (content) {
-//     return JSON.parse(content)
-//   }
-// }
 
