@@ -1,17 +1,17 @@
 import { describe, it } from 'mocha'
 import assert from 'assert'
-import { JSONSerializer } from '../src/index'
+import { jsonSerializer } from '../src/index'
 
 describe('JSONSerializer', () => {
   describe('serialize', () => {
-    it('should return hash key and seriaized content', () => {
+    it('should return hash key and serialized content', () => {
       const hash = s => `test${s}`
       const data = { test: Math.random() }
-      const s = new JSONSerializer(hash)
+      const serialize = jsonSerializer(hash)
 
-      const { key, content } = s.serialize(data)
+      const { key, content, deserialize } = serialize(data)
       assert.strictEqual(key, hash(JSON.stringify(data)))
-      assert.deepEqual(data, JSON.parse(content))
+      assert.deepEqual(data, deserialize(content))
     })
   })
 })
