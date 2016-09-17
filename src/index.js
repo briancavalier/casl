@@ -22,24 +22,28 @@ export class Store {
     this.key = key
   }
 
-  // Get the value out of this Store
+  // Functor - map the Store's value
+  map (f) {
+    return update(f(this.extract()), this)
+  }
+
+  // Extend - extend a function into the Store
+  extend (f) {
+    return update(f(this), this)
+  }
+
+  // Comonad - extract value from this Store
   extract () {
     return this.deserialize(this.storage[this.key])
   }
+}
 
-  // Update the value in this store by mapping a function over it
-  // Returns a Store containing the result
-  map (f) {
-    return this.set(f(this.extract()))
+// Return a store containing `data` as its value
+const update = (data, store) => {
+  const { key, content, deserialize } = store.serialize(data)
+  if (key === store.key) {
+    return store // the content already exists, bail out
   }
-
-  // Return a store containing `data` as its value
-  set (data) {
-    const { key, content, deserialize } = this.serialize(data)
-    if (key === this.key) {
-      return this // the content already exists, bail out
-    }
-    this.storage[key] = content
-    return new Store(this.serialize, deserialize, this.storage, key)
-  }
+  store.storage[key] = content
+  return new Store(store.serialize, deserialize, store.storage, key)
 }
