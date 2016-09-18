@@ -15,9 +15,10 @@ const scan = (f, a) => b => (a = f(a, b))
 const container = document.getElementById('app')
 const patch = snabbdom.init([events, attrs, props])
 
-// Create and init a Store based on the current has
-const key = location.hash.slice(1)
-let store = localStore(md5, localStorage, key).map(x => x || [])
+// Create and init a Store based on the current history state
+const hash = pipe(JSON.stringify, md5)
+const key = window.history.state
+let storeValue = localStore(hash, localStorage).valueForKey(key, [])
 
 // VDom rendering / patching
 const render = submit => lines =>
@@ -30,7 +31,7 @@ const render = submit => lines =>
   ])
 
 const renderLines = render(e => submit(e))
-const patchLines = scan(patch, patch(container, renderLines(store.extract())))
+const patchLines = scan(patch, patch(container, renderLines(storeValue.extract())))
 const update = pipe(renderLines, patchLines)
 
 // Submit handling
@@ -43,21 +44,22 @@ const lineValue = e => {
 }
 
 const addLine = line => {
-  store = store.map(lines => lines.concat([line]))
-  location.hash = store.key
-  return store.extract()
+  storeValue = storeValue.map(lines => lines.concat([line]))
+  window.history.pushState(storeValue.key, storeValue.key, storeValue.key)
+  return storeValue.extract()
 }
 
 const submit = pipe(lineValue, addLine, update)
 
 // Hashchange handling
 // When the hash changes, focus the store on the new hash
-const keyValue = e => location.hash.slice(1)
+const keyValue = e => e.state
 const loadKey = key => {
-  store = store.extend(({ deserialize, storage }) => deserialize(storage[key]) || [])
-  return store.extract()
+  storeValue = storeValue.extend(({ storage }) =>
+    storage.get(key) || [])
+  return storeValue.extract()
 }
 
-const hashChange = pipe(keyValue, loadKey, update)
+const handlePop = pipe(keyValue, loadKey, update)
 
-window.addEventListener('hashchange', hashChange, false)
+window.addEventListener('popstate', handlePop, false)
