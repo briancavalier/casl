@@ -1,54 +1,78 @@
 (function () {
 'use strict';
 
+// Create a Store
+var createStore = function (hash, storage) { return new Store(hash, storage); }
+
 // Create a Store that holds values in localStorage
-// The the returned store will have the value addressed by the provided key
-var localStore = function (hash, localStorage, key) { return new Store(jsonSerializer(hash), jsonDeserializer, localStorage, key); }
+var localStore = function (hash, localStorage) { return createStore(hash, new LocalStorage(localStorage)); }
 
-var jsonDeserializer = function (json) { return json == null ? undefined : JSON.parse(json); }
+// A Store provides access to key-value storage, where
+// values are stored based on a content-address provided
+// by the supplied hash function
+var Store = function Store (hash, storage) {
+  this.hash = hash
+  this.storage = storage
+};
 
-var jsonSerializer = function (hash) { return function (data) {
-  var json = JSON.stringify(data)
-  return { key: hash(json), content: json, deserialize: jsonDeserializer }
-}; }
+Store.prototype.valueForKey = function valueForKey (key, defaultValue) {
+  return new StoreValue(this.hash, this.storage, key)
+    .map(function (a) { return a != null ? a : defaultValue; })
+};
 
 // An immutable content-addressed store
 // A Store contains an immutable value that is considered to be unique
 // based on the provided serializer's key generation algorithm
-var Store = function Store (serialize, deserialize, storage, key) {
-  this.serialize = serialize
-  this.deserialize = deserialize
+var StoreValue = function StoreValue (hash, storage, key) {
+  this.hash = hash
   this.storage = storage
   this.key = key
 };
 
 // Functor - map the Store's value
-Store.prototype.map = function map (f) {
+StoreValue.prototype.map = function map (f) {
   return update$1(f(this.extract()), this)
 };
 
 // Extend - extend a function into the Store
-Store.prototype.extend = function extend (f) {
+StoreValue.prototype.extend = function extend (f) {
   return update$1(f(this), this)
 };
 
 // Comonad - extract value from this Store
-Store.prototype.extract = function extract () {
-  return this.deserialize(this.storage[this.key])
+StoreValue.prototype.extract = function extract () {
+  return this.storage.get(this.key)
 };
 
-// Return a store containing `data` as its value
-var update$1 = function (data, store) {
-  var ref = store.serialize(data);
-  var key = ref.key;
-  var content = ref.content;
-  var deserialize = ref.deserialize;
-  if (key === store.key) {
-    return store // the content already exists, bail out
-  }
-  store.storage[key] = content
-  return new Store(store.serialize, deserialize, store.storage, key)
+// Return a store containing `value` as its value
+var update$1 = function (value, store) {
+  var key = store.hash(value)
+  // If the key is already present, don't bother setting the
+  // key/value pair again
+  var newStorage = store.storage.has(key)
+    ? store.storage : store.storage.set(key, value)
+
+  return new StoreValue(store.hash, newStorage, key)
 }
+
+// LocalStorage Adapter
+var LocalStorage = function LocalStorage (localStorage) {
+  this.localStorage = localStorage
+};
+
+LocalStorage.prototype.has = function has (key) {
+  return this.localStorage.hasOwnProperty(key)
+};
+
+LocalStorage.prototype.get = function get (key) {
+  var value = this.localStorage.getItem(key)
+  return value == null ? value : JSON.parse(value)
+};
+
+LocalStorage.prototype.set = function set (key, value) {
+  this.localStorage.setItem(key, JSON.stringify(value))
+  return new LocalStorage(this.localStorage)
+};
 
 function createCommonjsModule(fn, module) {
 	return module = { exports: {} }, fn(module, module.exports), module.exports;
@@ -900,6 +924,7 @@ var h = function h(sel, b, c) {
   return VNode$1(sel, data, children, text, undefined);
 };
 
+// Helpers
 var pipe = function (f) {
   var fs = [], len = arguments.length - 1;
   while ( len-- > 0 ) fs[ len ] = arguments[ len + 1 ];
@@ -909,12 +934,14 @@ var pipe = function (f) {
 var pipe2 = function (f, g) { return function (x) { return g(f(x)); }; }
 var scan = function (f, a) { return function (b) { return (a = f(a, b)); }; }
 
+// Init DOM container and snabbdom
 var container = document.getElementById('app')
 var patch = snabbdom.init([eventlisteners, attributes, props])
 
-// Create and init a Store based on the current has
-var key = location.hash.slice(1)
-var store = localStore(md5, localStorage, key).map(function (x) { return x || []; })
+// Create and init a Store based on the current history state
+var hash = pipe(JSON.stringify, md5)
+var key = window.history.state
+var storeValue = localStore(hash, localStorage).valueForKey(key, [])
 
 // VDom rendering / patching
 var render = function (submit) { return function (lines) { return h('div#app', [
@@ -926,7 +953,7 @@ var render = function (submit) { return function (lines) { return h('div#app', [
   ]); }; }
 
 var renderLines = render(function (e) { return submit(e); })
-var patchLines = scan(patch, patch(container, renderLines(store.extract())))
+var patchLines = scan(patch, patch(container, renderLines(storeValue.extract())))
 var update = pipe(renderLines, patchLines)
 
 // Submit handling
@@ -939,29 +966,27 @@ var lineValue = function (e) {
 }
 
 var addLine = function (line) {
-  store = store.map(function (lines) { return lines.concat([line]); })
-  location.hash = store.key
-  return store.extract()
+  storeValue = storeValue.map(function (lines) { return lines.concat([line]); })
+  window.history.pushState(storeValue.key, storeValue.key, storeValue.key)
+  return storeValue.extract()
 }
 
 var submit = pipe(lineValue, addLine, update)
 
 // Hashchange handling
 // When the hash changes, focus the store on the new hash
-var keyValue = function (e) { return location.hash.slice(1); }
+var keyValue = function (e) { return e.state; }
 var loadKey = function (key) {
-  console.log(store.key, key)
-  store = store.extend(function (ref) {
-    var deserialize = ref.deserialize;
-    var storage = ref.storage;
+  storeValue = storeValue.extend(function (ref) {
+      var storage = ref.storage;
 
-    return deserialize(storage[key]) || [];
+      return storage.get(key) || [];
   })
-  return store.extract()
+  return storeValue.extract()
 }
 
-var hashChange = pipe(keyValue, loadKey, update)
+var handlePop = pipe(keyValue, loadKey, update)
 
-window.addEventListener('hashchange', hashChange, false)
+window.addEventListener('popstate', handlePop, false)
 
 }());
